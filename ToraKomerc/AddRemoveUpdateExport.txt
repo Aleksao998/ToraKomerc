@@ -1,0 +1,456 @@
+<?php
+
+
+echo"<script>
+    if ( window.history.replaceState ) {
+        window.history.replaceState( null, null, window.location.href );
+    }
+    </script>";
+
+If(isset($_POST['createCsv'])){
+  createCsvFile();
+}
+
+
+If(isset($_POST['submitAdd'])){
+  $itemId=$_POST['add'];
+  if(is_numeric($itemId)){
+  $doesExist=$wpdb->get_results("SELECT productId FROM wp_productsForImportBay WHERE productId=$itemId");
+  if(count($doesExist) == 0){
+    $wpdb->query("INSERT INTO wp_productsForImportBay (productid) VALUES ($itemId)");
+  }
+  $doesExist=$wpdb->get_results("SELECT productId FROM wp_ImportProductPromoBay WHERE productId=$itemId");
+  if(count($doesExist) == 1){
+    echo "<script type='text/javascript'>alert('Id proizvoda vec postoji!');</script>";
+  }
+  else{
+    $wpdb->query("INSERT INTO wp_ImportProductPromoBay (productid) VALUES ($itemId)");
+  }
+  }
+  else{
+    echo "<script type='text/javascript'>alert('Slova i znakovi interpukcije nisu dozvoljeni!');</script>";
+  }
+}
+
+If(isset($_POST['submitDelete'])){
+  $itemId=$_POST['delete'];
+  $doesExist=$wpdb->get_results("SELECT productId FROM wp_ImportProductPromoBay WHERE productId=$itemId");
+  if(count($doesExist) == 1){
+    $wpdb->query("DELETE FROM wp_ImportProductPromoBay  WHERE productId=$itemId");
+  }
+  else{
+    echo "<script type='text/javascript'>alert('Id proizvoda ne postoji, pokusajte ponovo!');</script>";
+  }
+}
+
+If(isset($_POST['submitSearch'])){
+  $itemId=$_POST['searchId'];
+  $doesExist=$wpdb->get_results("SELECT productId FROM wp_ImportProductPromoBay WHERE productId=$itemId");
+  if(count($doesExist) == 1){
+    echo "<script type='text/javascript'>alert('Proizvod postoji!');</script>";
+  }
+  else{
+    echo "<script type='text/javascript'>alert('Proizvod ne postoji!');</script>";
+  }
+}
+
+
+echo"<h1 style='text-align: center;'> Dodaj i ukloni proizvode PromoBay</h1>";
+
+echo"<form id='form_Search' style='text-align: center;' method='post'>";
+echo"<input type='text' placeholder='Pretrazi Id'  name='searchId'>";
+echo"<input type='submit' name='submitSearch' value='Submit'>";
+echo"</form>";
+global $wpdb;
+$values=$wpdb->get_results("SELECT productId FROM wp_ImportProductPromoBay");
+echo"<div style='overflow-x:auto;'>";
+echo"<table style='border: 0.5px solid black;'>";
+echo"<caption>Table with product ID</caption>";
+$i=0;
+$br=0;
+foreach($values as $value){
+  if($i%10==0) echo "<tr>";
+  echo "<td style='border: 0.5px solid black;'>" .$value->productId."</td>";
+  if($br==9)echo "</tr>";
+  $i=$i+1;
+  $br=$br+1;
+  if($br==9) $br=0;
+}
+echo"</table>";
+echo"</div>";
+
+echo"<form id='form_Add'  method='post'>";
+echo"<input type='text' placeholder='Dodaj novi Id'  name='add'>";
+echo"<input type='submit' name='submitAdd' value='Submit'>";
+echo"</form>";
+
+echo"<form id='form_Delete'  method='post'>";
+echo"<input type='text' placeholder='Obrisi postojeci Id'  name='delete'>";
+echo"<input type='submit' name='submitDelete' value='Submit'>";
+echo"</form>";
+
+echo"<form id='form_Create'  method='post'>";
+echo"<input type='submit' name='createCsv' value='NapraviCsv'>";
+echo"</form>";
+
+
+
+function createCsvFile(){
+  global $wpdb;
+  include("wp-config.php");
+      include("wp-content/themes/storefront/API/O3ON_API.php");
+      include("wp-content/themes/storefront/API/O3ON_API2.php");
+      header('Content-type: text/html; charset=utf-8');
+
+      $apiclientPromobay = O3ON_API_Connector::getInstance();
+      $apiclientPromosolution = O3ON_API_Connector2::getInstance();
+
+      //svi modeli
+      $modelsPromobay = $apiclientPromobay->CallAPI('Model', 'sr-Latin-CS', '');
+      $modelsPromosolution = $apiclientPromosolution->CallAPI('Model', 'sr-Latin-CS', '');
+      //svi producati
+      $modelsPromobayProducts = $apiclientPromobay->CallAPI('Product', 'sr-Latin-CS', '');
+
+
+      function phpAlert($msg) {
+          echo '<script type="text/javascript">alert("' . $msg . '")</script>';
+      }
+
+  $headers= array ("parent_sku",
+                  "sku",
+                  "post_title",
+                  "post_excerpt",
+                  "post_content",
+                  "post_status",
+                  "regular_price",
+                  "sale_price",
+                  "stock_status",
+                  "stock",
+                  "manage_stock",
+                  "weight",
+                  "Images",
+                  "tax:product_type",
+                  "tax:product_cat",
+                  "tax:product_tag",
+                  "meta:attribute_color",
+                  "attribute:color",
+                  "attribute_data:color",
+                  "attribute_default:color",
+                  "meta:attribute_size",
+                  "attribute:size",
+                  "attribute_data:size",
+                  "attribute_default:size",
+                  "productId");
+
+
+  $data=array();
+
+
+
+  $inputs2=$wpdb->get_results("SELECT productId FROM wp_productsForImportBay");
+
+
+
+  function OdriCategory(string $category, string $subcategory, int $modelId) {
+
+      if($category=="Olovke"){
+        if($subcategory=="Touch olovke") return "Ostalo";
+        else if($subcategory=="Plastične olovke") return "Olovke > Plastične olovke";
+        else if($subcategory=="Metalne olovke") return "Olovke > Metalne olovke";
+        else if($subcategory=="Olovke u setu") return "Olovke > Setovi olovaka";
+        else if($subcategory=="Razno"){
+          if($modelId == 2099 && $modelId == 2059) return "Olovke > Drvene olovke";
+          if($modelId == 2055 && $modelId == 2078 && $modelId == 2156 && $modelId == 2058) return "Olovke > Kutije za olovke";
+        }
+      }
+      if($category=="Upaljači"){
+        if($subcategory=="Elektronski upaljači") return "Upaljači > Elektronski upaljači";
+        else if($subcategory=="Kremen upaljači") return "Upaljači > Kremen upaljaci";
+        else if($subcategory=="Metalni upaljači") return "Upaljači > Metalni upaljaci";
+        else if($subcategory=="USB elektro upaljači") return "Upaljači > USB upaljači";
+      }
+      if($category=="USB i tehnologija"){
+        if($subcategory=="USB flash memorija") return "USB > USB Flash memorija";
+      }
+      if($category=="Privesci"){
+        return "Privesci > Privesci";
+      }
+      if($category=="Satovi"){
+        return "Kancelarija > Satovi";
+      }
+      if($category=="USB i tehnologija"){
+        if($subcategory=="Power bank") return "Tehnologija > Power Bank";
+        else if($subcategory=="Zvučnici i slušalice") return "Tehnologija > Audio";
+        else if($subcategory=="Razno")   return "Ostalo";
+      }
+      if($category=="Kancelarija"){
+        if($subcategory=="Poslovni setovi") return "Ostalo";
+        else if($subcategory=="Vizitari i podsetnici") return "Kancelarija > Vizitari";
+        else if($subcategory=="Novčvanici i futrole") return "Ostalo";
+        else if($subcategory=="Razno") return "Ostalo";
+      }
+      if($category=="Alati i oprema"){
+        if($subcategory=="Lampe") return "Alati > Lampe";
+        else if($subcategory=="Alati") return "Alati > Merni pribor";
+        else if($subcategory=="Oprema") return "Alati > Auto oprema";
+        else if($subcategory=="Razno") return "Ostalo";
+      }
+      if($category=="Lepota i relaksacija"){
+        if($subcategory=="Ogledala") return "Lepota > Lepota";
+        else if($subcategory=="Manikir setovi") return "Lepota > Lepota";
+        else if($subcategory=="Letnji program") return "Ostalo";
+        else if($subcategory=="Razno"){
+          if($modelId == 6011) return "Lepota > Antistres";
+          else return "Ostalo";
+        }
+      }
+      if($category=="Kućni setovi"){
+
+        if($subcategory=="Kišobrani") return "Kišobrani > Kišobrani";
+        else if($subcategory=="Vinski setovi") return "Kućni Setovi > Vinski setovi";
+        else if($subcategory=="Keramika i porcelan") return "Kućni Setovi >  Keramika i staklo";
+        else if($subcategory=="Razno") return "Kućni setovi >  Vinski setovi";
+      }
+      if($category=="Rokovnici i notesi"){
+        if($subcategory=="Planeri") return "Rokovnici > Planeri";
+        else if($subcategory=="Rokovnici") return "Rokovnici > Agende";
+        else if($subcategory=="Notesi") return "Rokovnici > Notesi";
+        else if($subcategory=="Razno") return "Ostalo";
+      }
+      if($category=="Specijalni pokloni"){
+        return "Ostalo";
+      }
+      if($category=="Tekstil"){
+        if($subcategory=="Kape i kačketi") return "Kape > Kape i šalovi";
+      }
+      if($category=="Torbe"){
+        if($subcategory=="Ranac") return "Torbe > Rancevi";
+        else if($subcategory=="Ženske torbe") return "Torbe > Torbe";
+        else if($subcategory=="Biorazgradive torbe") return "Torbe > Torbe";
+        else if($subcategory=="Papirne kese") return "Torbe > Kese";
+        else if($subcategory=="Poslovne torbe") return "Torbe > Torbe";
+        else if($subcategory=="Putne i sportske torbe") return "Torbe > Sportske torbe";
+        else if($subcategory=="Razno") return "Torbe > Torbe";
+      }
+      if($category=="Kalendari"){
+        if($subcategory=="Stoni kalendari") return "Kalendari > Stoni kalendari";
+        else return "Kalendari > Zidni kalendari";
+      }
+      return "Ostalo";
+  }
+
+
+
+
+  foreach($inputs2 as $input)
+    {
+
+      $model =  $apiclientPromobay->CallAPI('Model', 'sr-Latin-CS',$input->productId);
+
+      if(isset($model->Message)==0){
+
+
+
+      $parentSku="";
+      $postTitle=$model->Name;
+
+      $Sku=$model->Id;
+      $productId=$model->Id;
+      $post_excerpt=$model->Description;
+      $model->Description2 = str_replace(array("\n", "\r"), ' ', $model->Description2);
+      $post_content=$model->Description2;
+      $post_status='publish';
+      $regular_price="";
+      $sale_price="";
+      $stock_status="";
+      $stock="";
+      $manage_stock="";
+      $weight="";
+      $Images=$model->Image;
+      $taxProduct_type="variable";
+      $taxProduct_cat="";
+      $taxProduct_tag="";
+      $metaAttribute_color="";
+      $attributeColor="";
+
+      if(count($model->Colors)==1)
+      {
+
+        $attributeColor=$model->Colors[0]->Name;
+      }
+      else{
+        $prvaBoja=True;
+        foreach($model->Colors as $color)
+        {
+          if($prvaBoja==True)$attributeColor=$attributeColor.$color->Name;
+          else $attributeColor=$attributeColor."|".$color->Name;
+          $prvaBoja=False;
+
+        }
+      }
+      $attribute_dataColor="1|1|1";
+      $attribute_defaultColor="";
+      $metaAttribute_size="";
+      $attributeSize="";
+      $attribute_dataSize="";
+      $attribute_defaultSize="";
+
+      $parentProduct = array("parent_sku"=>$parentSku,
+                      "sku"=>$Sku,
+                      "post_title"=> $postTitle,
+                      "post_excerpt"=>$post_excerpt,
+                      "post_content"=>$post_content,
+                      "post_status"=>$post_status,
+                      "regular_price"=>$regular_price,
+                      "sale_price"=>$sale_price,
+                      "stock_status"=>$stock_status,
+                      "stock"=>$stock,
+                      "manage_stock"=>$manage_stock,
+                      "weight"=>$weight,
+                      "Images"=>$Images,
+                      "tax:product_type"=>$taxProduct_type,
+                      "tax:product_cat"=>$taxProduct_cat,
+                      "tax:product_tag"=>$taxProduct_tag,
+                      "meta:attribute_color"=>  $metaAttribute_color,
+                      "attribute:color"=>$attributeColor,
+                      "attribute_data:color"=>$attribute_dataColor,
+                      "attribute_default:color"=>  $attribute_defaultColor,
+                      "meta:attribute_size"=>$metaAttribute_size,
+                      "attribute:size"=>    $attributeSize,
+                      "attribute_data:size"=>$attribute_dataSize,
+                      "attribute_default:size"=>$attribute_defaultSize,
+                      "productId"=>  $productId);
+      if(isset($model->Colors[0])==1){
+        $productsId=$model->Id;
+        if($model->Colors[0]->Id!="00")$productsId=$model->Id.'.'.$model->Colors[0]->Id;
+        $categoryId="";
+        $subcategoryId="";
+        foreach($modelsPromobayProducts as $modelsPromobayProduct){
+          if($modelsPromobayProduct->Id != $productsId) continue;
+          $categoryId=$modelsPromobayProduct->Category;
+          $subcategoryId=$modelsPromobayProduct->SubCategory;
+          break;
+        }
+        if($categoryId!="" && $subcategoryId!=""){
+        $productCat= $apiclientPromobay->CallAPI('Category', 'sr-Latin-CS',$categoryId)->Name;
+
+        $category = $apiclientPromobay->CallAPI('Category', 'sr-Latin-CS','');
+        foreach($category as $sub){
+          if($sub->Id != $subcategoryId) continue;
+          $productSub=$sub->Name;
+          break;
+        }
+
+
+        $parentProduct["tax:product_cat"]=OdriCategory($productCat,$productSub,$model->Id);
+        }
+        else if(isset($product->Category)==1){
+        $parentProduct["tax:product_cat"]=$apiclientPromobay->CallAPI('Category', 'sr-Latin-CS',$categoryId)->Name;
+        }
+        else{
+          $parentProduct["tax:product_cat"]="Ostalo";
+        }
+        array_push($data,$parentProduct);
+
+      }
+
+      foreach($model->Colors as $color)
+      {
+        $idd='';
+        $idd=$model->Id.'.'.$color->Id;
+        $modelsPromobayImage = $apiclientPromobay->CallAPI('ProductImage', 'sr-Latin-CS', $idd);
+
+
+
+        $parentSku=$model->Id;
+        $postTitle1="";
+        $Sku=$model->Id.''.$color->Id;
+        $productId=$model->Id.''.$color->Id;
+        $post_excerpt="";
+        $post_content="";
+        $sale_price="";
+        $post_status='publish';
+        $stock_status="instock";
+        $manage_stock="yes";
+        $weight="";
+        $taxProduct_cat="";
+        $taxProduct_tag="";
+        $attributeColor="";
+        $attribute_dataColor="";
+        $attribute_defaultColor="";
+        $metaAttribute_size="";
+        $attributeSize="";
+        $attribute_dataSize="";
+        $attribute_defaultSize="";
+        $taxProduct_type="variable";
+        $prvaSlika=True;
+
+        if(isset($modelsPromobayImage[0]->Image)==1){
+          $Images=$modelsPromobayImage[0]->Image;
+
+        }
+        else{
+          $Images="";
+        }
+        $metaAttribute_color= $color->Name;
+        foreach($color->Sizes as $size)
+        {
+
+        $regular_price=$size->Product->Price;
+
+        if(isset($size->Product->Stocks[0])==1){
+        $stock= $size->Product->Stocks[0]->Qty;
+        }
+        else{
+            $stock="";
+        }
+
+
+        $chieldProduct = array("parent_sku"=>$parentSku,
+                        "sku"=>$Sku,
+                        "post_title"=> $postTitle,
+                        "post_excerpt"=>$post_excerpt,
+                        "post_content"=>$post_content,
+                        "post_status"=>$post_status,
+                        "regular_price"=>$regular_price,
+                        "sale_price"=>$sale_price,
+                        "stock_status"=>$stock_status,
+                        "stock"=>$stock,
+                        "manage_stock"=>$manage_stock,
+                        "weight"=>$weight,
+                        "Images"=>$Images,
+                        "tax:product_type"=>$taxProduct_type,
+                        "tax:product_cat"=>$taxProduct_cat,
+                        "tax:product_tag"=>$taxProduct_tag,
+                        "meta:attribute_color"=>  $metaAttribute_color,
+                        "attribute:color"=>$attributeColor,
+                        "attribute_data:color"=>$attribute_dataColor,
+                        "attribute_default:color"=>  $attribute_defaultColor,
+                        "meta:attribute_size"=>$metaAttribute_size,
+                        "attribute:size"=>    $attributeSize,
+                        "attribute_data:size"=>$attribute_dataSize,
+                        "attribute_default:size"=>$attribute_defaultSize,
+                        "productId"=>  $productId);
+                        array_push($data,  $chieldProduct);
+
+
+          }
+
+      }
+    }
+
+  }
+
+
+
+  $fh=fopen("productimport.csv", 'w');
+  fputcsv($fh,$headers);
+  foreach($data as $fields){
+    fputcsv($fh,$fields);
+  }
+  mb_convert_encoding($fh, 'UCS-2LE', 'UTF-8');
+  fclose($fh);
+  $table  = $wpdb->prefix . 'productsForImportBay';
+$delete = $wpdb->query("TRUNCATE TABLE $table");
+
+}
